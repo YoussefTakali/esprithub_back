@@ -24,15 +24,19 @@ public class GitHubController {
     @Value("${spring.security.oauth2.client.registration.github.scope}")
     private String githubScope;
 
+    @Value("${FRONTEND_URL:http://localhost:4200}")
+    private String frontendUrl;
+
     private static final String GITHUB_AUTH_URL = "https://github.com/login/oauth/authorize";
-    private static final String REDIRECT_URI = "http://localhost:4200/auth/github/callback";
 
     @GetMapping("/auth-url")
     public ResponseEntity<Map<String, String>> getGitHubAuthUrl() {
+        String redirectUri = frontendUrl + "/auth/github/callback";
+        
         log.info("Generating GitHub OAuth URL");
         log.debug("GitHub Client ID: {}", githubClientId);
         log.debug("GitHub Scope: {}", githubScope);
-        log.debug("Redirect URI: {}", REDIRECT_URI);
+        log.debug("Redirect URI: {}", redirectUri);
 
         // Generate a random state parameter for security
         String state = UUID.randomUUID().toString();
@@ -40,7 +44,7 @@ public class GitHubController {
         // Build the GitHub authorization URL
         String authUrl = GITHUB_AUTH_URL +
                 "?client_id=" + githubClientId +
-                "&redirect_uri=" + URLEncoder.encode(REDIRECT_URI, StandardCharsets.UTF_8) +
+                "&redirect_uri=" + URLEncoder.encode(redirectUri, StandardCharsets.UTF_8) +
                 "&scope=" + URLEncoder.encode(githubScope, StandardCharsets.UTF_8) +
                 "&prompt=consent" +
                 "&state=" + state;
