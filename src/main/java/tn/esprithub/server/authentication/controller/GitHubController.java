@@ -27,11 +27,14 @@ public class GitHubController {
     @Value("${FRONTEND_URL:http://localhost:4200}")
     private String frontendUrl;
 
+    @Value("${github.oauth.redirect-uri:http://localhost:4200/auth/github/callback}")
+    private String githubOAuthRedirectUri;
+
     private static final String GITHUB_AUTH_URL = "https://github.com/login/oauth/authorize";
 
     @GetMapping("/auth-url")
     public ResponseEntity<Map<String, String>> getGitHubAuthUrl() {
-        String redirectUri = frontendUrl + "/auth/github/callback";
+        String redirectUri = githubOAuthRedirectUri;
         
         log.info("Generating GitHub OAuth URL");
         log.debug("GitHub Client ID: {}", githubClientId);
