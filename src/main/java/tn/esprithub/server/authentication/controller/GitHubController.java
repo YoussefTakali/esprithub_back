@@ -27,7 +27,7 @@ public class GitHubController {
     @Value("${FRONTEND_URL:http://localhost:4200}")
     private String frontendUrl;
 
-    @Value("${github.oauth.redirect-uri:http://localhost:4200/auth/github/callback}")
+    @Value("${github.oauth.redirect-uri:https://esprithub-a9b0532d96dd.herokuapp.com/auth/github/callback}")
     private String githubOAuthRedirectUri;
 
     private static final String GITHUB_AUTH_URL = "https://github.com/login/oauth/authorize";
