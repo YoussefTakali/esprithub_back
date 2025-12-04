@@ -25,6 +25,9 @@ public class EmailService {
     @Value("${spring.mail.password:}")
     private String mailPassword;
 
+    @Value("${app.mail.from:noreply@esprithub.com}")
+    private String mailFrom;
+
     public void sendCredentialsEmail(String to, String username, String password) {
         if (!canSendEmails()) {
             log.warn("Skipping credentials email for {} because SMTP is disabled or not configured", to);
@@ -35,6 +38,7 @@ public class EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
+            helper.setFrom(mailFrom);
             helper.setTo(to);
             helper.setSubject("Vos identifiants de connexion - espriHUb");
             helper.setText(buildCredentialsEmailTemplate(to, username, password), true);
@@ -59,6 +63,7 @@ public class EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
+            helper.setFrom(mailFrom);
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(htmlContent, true); // true = contenu HTML
