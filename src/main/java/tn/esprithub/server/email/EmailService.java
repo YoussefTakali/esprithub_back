@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -28,6 +29,7 @@ public class EmailService {
     @Value("${app.mail.from:noreply@esprithub.com}")
     private String mailFrom;
 
+    @Async
     public void sendCredentialsEmail(String to, String username, String password) {
         if (!canSendEmails()) {
             log.warn("Skipping credentials email for {} because SMTP is disabled or not configured", to);
@@ -44,15 +46,17 @@ public class EmailService {
             helper.setText(buildCredentialsEmailTemplate(to, username, password), true);
 
             mailSender.send(message);
-            log.info("Credentials email sent to {}", to);
+            log.info("Credentials email sent successfully to {}", to);
         } catch (Exception e) {
-            log.error("Failed to send credentials email to {}", to, e);
+            log.error("Failed to send credentials email to {}. Email service may not be configured properly. Error: {}", to, e.getMessage());
+            // Don't throw exception - we don't want to interrupt the user creation process
         }
     }
 
     /**
      * Envoie une notification par email avec contenu HTML personnalisé
      */
+    @Async
     public void sendNotificationEmail(String to, String subject, String htmlContent) {
         if (!canSendEmails()) {
             log.warn("Skipping notification email for {} because SMTP is disabled or not configured", to);
@@ -68,10 +72,11 @@ public class EmailService {
             helper.setSubject(subject);
             helper.setText(htmlContent, true); // true = contenu HTML
 
-                        mailSender.send(message);
-                        log.info("Notification email sent to {}", to);
+            mailSender.send(message);
+            log.info("Notification email sent successfully to {}", to);
         } catch (Exception e) {
-                        log.error("Error sending notification email to {}", to, e);
+            log.error("Error sending notification email to {}. Error: {}", to, e.getMessage());
+            // Don't throw exception - we don't want to interrupt the notification process
         }
     }
 
