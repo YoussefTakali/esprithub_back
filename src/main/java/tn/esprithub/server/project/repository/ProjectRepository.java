@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 import tn.esprithub.server.project.entity.Project;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -19,4 +20,7 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
     // Find projects with deadlines (for deadline notifications)
     @Query("SELECT p FROM Project p WHERE p.deadline IS NOT NULL")
     List<Project> findByDeadlineIsNotNull();
+
+    @Query("SELECT DISTINCT p FROM Project p LEFT JOIN FETCH p.createdBy LEFT JOIN FETCH p.collaborators WHERE p.id IN :projectIds")
+    List<Project> findAllByIdWithMembers(@Param("projectIds") Set<UUID> projectIds);
 }

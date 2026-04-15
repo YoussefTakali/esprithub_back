@@ -6,6 +6,8 @@ import tn.esprithub.server.project.repository.ProjectRepository;
 import tn.esprithub.server.project.service.ProjectService;
 import tn.esprithub.server.user.entity.User;
 import tn.esprithub.server.user.repository.UserRepository;
+import tn.esprithub.server.project.repository.GroupRepository;
+import tn.esprithub.server.messenger.service.MessengerService;
 import tn.esprithub.server.project.dto.TeacherClassCourseDto;
 import tn.esprithub.server.academic.repository.ClasseRepository;
 import tn.esprithub.server.academic.repository.CourseAssignmentRepository;
@@ -26,12 +28,16 @@ public class ProjectServiceImpl implements ProjectService {
     private final UserRepository userRepository;
     private final ClasseRepository classeRepository;
     private final CourseAssignmentRepository courseAssignmentRepository;
+    private final GroupRepository groupRepository;
+    private final MessengerService messengerService;
 
-    public ProjectServiceImpl(ProjectRepository projectRepository, UserRepository userRepository, ClasseRepository classeRepository, CourseAssignmentRepository courseAssignmentRepository) {
+    public ProjectServiceImpl(ProjectRepository projectRepository, UserRepository userRepository, ClasseRepository classeRepository, CourseAssignmentRepository courseAssignmentRepository, GroupRepository groupRepository, MessengerService messengerService) {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
         this.classeRepository = classeRepository;
         this.courseAssignmentRepository = courseAssignmentRepository;
+        this.groupRepository = groupRepository;
+        this.messengerService = messengerService;
     }
 
     @Override
@@ -58,7 +64,9 @@ public class ProjectServiceImpl implements ProjectService {
         if (dto.getCollaboratorIds() != null) {
             existing.setCollaborators(userRepository.findAllById(dto.getCollaboratorIds()));
         }
-        return projectRepository.save(existing);
+        Project saved = projectRepository.save(existing);
+        syncProjectGroupConversations(saved.getId());
+        return saved;
     }
 
     @Override
@@ -89,6 +97,7 @@ public class ProjectServiceImpl implements ProjectService {
         if (!project.getCollaborators().contains(user)) {
             project.getCollaborators().add(user);
             projectRepository.save(project);
+            syncProjectGroupConversations(project.getId());
         }
         return project;
     }
@@ -100,6 +109,7 @@ public class ProjectServiceImpl implements ProjectService {
         if (project.getCollaborators().contains(user)) {
             project.getCollaborators().remove(user);
             projectRepository.save(project);
+            syncProjectGroupConversations(project.getId());
         }
         return project;
     }
@@ -122,5 +132,14 @@ public class ProjectServiceImpl implements ProjectService {
             }
         }
         return result;
+    }
+
+    private void syncProjectGroupConversations(UUID projectId) {
+        if (projectId == null) {
+            return;
+        }
+
+        groupRepository.findByProjectId(projectId)
+            .forEach(messengerService::syncGroupConversationParticipants);
     }
 }

@@ -32,6 +32,19 @@ public class CodeReviewResult {
     private List<String> securityConcerns;
     private List<String> performanceTips;
     private List<String> bestPractices;
+
+    // Grade suggestion
+    private Integer suggestedGrade; // 0-100
+    private String gradeRationale;
+
+    // Risk detection
+    private RiskLevel riskLevel;
+    private Integer riskScore; // 0-100
+    private List<String> riskSignals;
+
+    // Pull request review decision
+    private PullRequestDecision pullRequestDecision;
+    private List<String> prBlockingConcerns;
     
     // Métadonnées
     private String analyzedLanguage;
@@ -74,5 +87,13 @@ public class CodeReviewResult {
     
     public enum SuggestionPriority {
         LOW, MEDIUM, HIGH
+    }
+
+    public enum RiskLevel {
+        LOW, MEDIUM, HIGH, CRITICAL
+    }
+
+    public enum PullRequestDecision {
+        APPROVE, COMMENT, REQUEST_CHANGES
     }
 } 

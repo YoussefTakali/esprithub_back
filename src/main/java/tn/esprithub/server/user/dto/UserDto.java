@@ -9,7 +9,6 @@ import tn.esprithub.server.common.enums.UserRole;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -22,8 +21,6 @@ public class UserDto {
     
     @NotBlank(message = "L'email est obligatoire")
     @Email(message = "Format d'email invalide")
-    @Pattern(regexp = "^[A-Za-z0-9._%+-]+@esprit\\.tn$", 
-             message = "L'email doit être du domaine esprit.tn")
     private String email;
     
     @NotBlank(message = "Le prénom est obligatoire")

@@ -72,6 +72,16 @@ public class Submission extends BaseEntity {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
+    @Lob
+    @Column(name = "ai_review_cache", columnDefinition = "TEXT")
+    private String aiReviewCache;
+
+    @Column(name = "ai_review_cache_commit_hash", length = 40)
+    private String aiReviewCacheCommitHash;
+
+    @Column(name = "ai_review_cached_at")
+    private LocalDateTime aiReviewCachedAt;
+
     public enum SubmissionStatus {
         DRAFT,
         SUBMITTED,

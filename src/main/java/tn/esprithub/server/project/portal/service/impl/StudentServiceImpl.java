@@ -790,9 +790,16 @@ public class StudentServiceImpl implements StudentService {
             throw new BusinessException("Access denied to repository");
         }
 
+        UUID repositoryUuid;
+        try {
+            repositoryUuid = UUID.fromString(repositoryId);
+        } catch (Exception ex) {
+            throw new BusinessException("Invalid repository ID format: " + repositoryId);
+        }
+
         // Try to find the repository entity in the database
         log.info("🔍 Looking for repository {} in database", repositoryId);
-        Optional<tn.esprithub.server.repository.entity.Repository> repoOpt = repositoryEntityRepository.findById(UUID.fromString(repositoryId));
+        Optional<tn.esprithub.server.repository.entity.Repository> repoOpt = repositoryEntityRepository.findById(repositoryUuid);
         if (repoOpt.isEmpty()) {
             log.warn("⚠️ Repository {} not found in database", repositoryId);
             return Map.of(
@@ -805,57 +812,67 @@ public class StudentServiceImpl implements StudentService {
             );
         }
 
+        tn.esprithub.server.repository.entity.Repository repositoryEntity = repoOpt.get();
+        String resolvedBranch = resolveBranchForCommitListing(repositoryEntity, branch);
+
+        // Prefer live GitHub data so newly pushed commits appear immediately in student submit flow.
+        if (student.getGithubToken() != null && !student.getGithubToken().isBlank()) {
+            try {
+                String[] ownerRepo = resolveOwnerAndName(repositoryEntity);
+                if (ownerRepo != null) {
+                    int githubPage = Math.max(1, page + 1);
+                    int perPage = Math.max(1, size);
+                    List<Map<String, Object>> githubCommits = getRepositoryCommits(
+                            ownerRepo[0],
+                            ownerRepo[1],
+                            resolvedBranch,
+                            githubPage,
+                            perPage,
+                            studentEmail
+                    );
+
+                    if (!githubCommits.isEmpty()) {
+                        boolean hasMore = githubCommits.size() >= perPage;
+                        long estimatedTotal = hasMore
+                                ? ((long) page * perPage) + githubCommits.size() + 1L
+                                : ((long) page * perPage) + githubCommits.size();
+                        int totalPages = hasMore ? page + 2 : Math.max(1, page + 1);
+
+                        log.info("✅ Returning {} live commits from GitHub for repository {} on branch {}",
+                                githubCommits.size(), repositoryId, resolvedBranch);
+
+                        return Map.of(
+                                "commits", githubCommits,
+                                "repositoryId", repositoryId,
+                                "branch", resolvedBranch,
+                                "page", page,
+                                "size", size,
+                                "totalCommits", estimatedTotal,
+                                "totalPages", totalPages,
+                                "hasMore", hasMore,
+                                "source", "GITHUB_LIVE"
+                        );
+                    }
+                }
+            } catch (Exception ex) {
+                log.warn("⚠️ Live GitHub commit fetch failed for repository {}: {}. Falling back to database.",
+                        repositoryId, ex.getMessage());
+            }
+        }
+
         // Fetch real commits from the database using pagination
         log.info("📝 Fetching real commits for repository: {} (page: {}, size: {})", repositoryId, page, size);
         
         org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.Pageable.ofSize(size).withPage(page);
-        Page<RepositoryCommit> commitPage = repositoryCommitRepository.findByRepositoryIdOrderByDateDesc(UUID.fromString(repositoryId), pageable);
-        
-        // If no commits found in database, try to fetch latest commit from GitHub
+        Page<RepositoryCommit> commitPage = repositoryCommitRepository.findByRepositoryIdOrderByDateDesc(repositoryUuid, pageable);
+
         if (commitPage.getTotalElements() == 0) {
-            log.info("🔍 No commits found in database, fetching latest commit from GitHub for repository: {}", repositoryId);
-            
-            // Get repository details to extract GitHub info
-            Optional<tn.esprithub.server.repository.entity.Repository> repoEntity = repositoryEntityRepository.findById(UUID.fromString(repositoryId));
-            if (repoEntity.isPresent() && student.getGithubToken() != null && !student.getGithubToken().isBlank()) {
-                String fullName = repoEntity.get().getFullName();
-                if (fullName != null && fullName.contains("/")) {
-                    String[] parts = fullName.split("/");
-                    String owner = parts[0];
-                    String repoName = parts[1];
-                    
-                    try {
-                        // Fetch latest commit from GitHub
-                        log.info("🔍 Fetching latest commit from GitHub for: {}/{}", owner, repoName);
-                        List<Map<String, Object>> githubCommits = getRepositoryCommits(owner, repoName, "main", 1, 1, studentEmail);
-                        
-                        if (!githubCommits.isEmpty()) {
-                            Map<String, Object> latestCommit = githubCommits.get(0);
-                            log.info("✅ Found latest commit from GitHub: {}", latestCommit.get("sha"));
-                            
-                            // Return the latest commit as if it were from database
-                            return Map.of(
-                                "commits", githubCommits,
-                                "repositoryId", repositoryId,
-                                "page", page,
-                                "size", size,
-                                "totalCommits", 1,
-                                "totalPages", 1,
-                                "hasMore", false,
-                                "source", "GITHUB_LIVE"
-                            );
-                        }
-                    } catch (Exception e) {
-                        log.warn("⚠️ Failed to fetch commits from GitHub: {}", e.getMessage());
-                    }
-                }
-            }
-            
             // If GitHub fetch fails, return empty with explanation
             log.warn("⚠️ No commits available for repository {} (neither in database nor GitHub)", repositoryId);
             return Map.of(
                 "commits", List.of(),
                 "repositoryId", repositoryId,
+                "branch", resolvedBranch,
                 "page", page,
                 "size", size,
                 "totalCommits", 0,
@@ -893,6 +910,7 @@ public class StudentServiceImpl implements StudentService {
         return Map.of(
             "commits", commits,
             "repositoryId", repositoryId,
+            "branch", resolvedBranch,
             "page", page,
             "size", size,
             "totalCommits", commitPage.getTotalElements(),
@@ -2688,9 +2706,12 @@ public class StudentServiceImpl implements StudentService {
                         Map<String, Object> commitData = (Map<String, Object>) item;
 
                         Map<String, Object> commit = new HashMap<>();
-                        commit.put("sha", commitData.get("sha"));
+                        String sha = commitData.get("sha") != null ? String.valueOf(commitData.get("sha")) : null;
+                        commit.put("id", sha);
+                        commit.put("sha", sha);
                         commit.put("url", commitData.get("url"));
                         commit.put("htmlUrl", commitData.get("html_url"));
+                        commit.put("githubUrl", commitData.get("html_url"));
 
                         // Extract commit details
                         if (commitData.get("commit") instanceof Map) {
@@ -3238,7 +3259,7 @@ public class StudentServiceImpl implements StudentService {
         log.info("🔍 Getting latest commit hash for repository: {} by student: {}", repositoryId, studentEmail);
         
         // Get the first commit (latest) from the repository
-        Map<String, Object> commitsResponse = getRepositoryCommits(repositoryId, studentEmail, 0, 1, "main");
+        Map<String, Object> commitsResponse = getRepositoryCommits(repositoryId, studentEmail, 0, 1, "");
         
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> commits = (List<Map<String, Object>>) commitsResponse.get("commits");
@@ -3251,6 +3272,62 @@ public class StudentServiceImpl implements StudentService {
         
         log.warn("⚠️ No commits found for repository {}", repositoryId);
         throw new BusinessException("No commits found in repository. Please make sure the repository has commits.");
+    }
+
+    private String resolveBranchForCommitListing(tn.esprithub.server.repository.entity.Repository repository,
+                                                 String requestedBranch) {
+        if (StringUtils.hasText(requestedBranch) && !"main".equalsIgnoreCase(requestedBranch.trim())) {
+            return requestedBranch.trim();
+        }
+
+        if (repository != null && StringUtils.hasText(repository.getDefaultBranch())) {
+            return repository.getDefaultBranch();
+        }
+
+        if (StringUtils.hasText(requestedBranch)) {
+            return requestedBranch.trim();
+        }
+
+        return "main";
+    }
+
+    private String[] resolveOwnerAndName(tn.esprithub.server.repository.entity.Repository repository) {
+        if (repository == null) {
+            return null;
+        }
+
+        if (StringUtils.hasText(repository.getFullName()) && repository.getFullName().contains("/")) {
+            String[] parts = repository.getFullName().split("/", 2);
+            if (parts.length == 2 && StringUtils.hasText(parts[0]) && StringUtils.hasText(parts[1])) {
+                return new String[]{parts[0], parts[1]};
+            }
+        }
+
+        if (StringUtils.hasText(repository.getUrl())) {
+            String normalized = repository.getUrl()
+                    .replace("https://github.com/", "")
+                    .replace("http://github.com/", "")
+                    .replace("git@github.com:", "");
+
+            if (normalized.endsWith(".git")) {
+                normalized = normalized.substring(0, normalized.length() - 4);
+            }
+
+            if (normalized.contains("/")) {
+                String[] parts = normalized.split("/", 2);
+                if (parts.length == 2 && StringUtils.hasText(parts[0]) && StringUtils.hasText(parts[1])) {
+                    return new String[]{parts[0], parts[1]};
+                }
+            }
+        }
+
+        if (repository.getOwner() != null
+                && StringUtils.hasText(repository.getOwner().getGithubUsername())
+                && StringUtils.hasText(repository.getName())) {
+            return new String[]{repository.getOwner().getGithubUsername(), repository.getName()};
+        }
+
+        return null;
     }
 
     // Helper methods for file operations

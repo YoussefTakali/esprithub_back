@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import tn.esprithub.server.ai.dto.CodeReviewResult;
 import tn.esprithub.server.common.exception.BusinessException;
 import tn.esprithub.server.project.dto.*;
 import tn.esprithub.server.project.service.SubmissionService;
@@ -192,6 +193,58 @@ public class SubmissionController {
         } catch (Exception e) {
             log.error("Unexpected error getting teacher submissions", e);
             throw new BusinessException("Failed to get teacher submissions: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Build a runnable app preview URL for teachers reviewing a submission.
+     */
+    @GetMapping("/{submissionId}/review-app")
+    @PreAuthorize("hasRole('TEACHER') or hasRole('ADMIN')")
+    public ResponseEntity<SubmissionReviewAppPreviewDto> getTeacherReviewAppPreview(
+            @PathVariable UUID submissionId,
+            Authentication authentication) {
+        log.info("Generating review app preview for submission: {} by {}", submissionId, authentication.getName());
+
+        try {
+            SubmissionReviewAppPreviewDto preview = submissionService.getTeacherReviewAppPreview(
+                    submissionId,
+                    authentication.getName()
+            );
+            return ResponseEntity.ok(preview);
+        } catch (BusinessException e) {
+            log.error("Error generating review app preview: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error generating review app preview", e);
+            throw new BusinessException("Failed to generate review app preview: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Analyze a submission commit with AI for PR review and suggested grading.
+     */
+    @GetMapping("/{submissionId}/ai-review")
+    @PreAuthorize("hasRole('TEACHER') or hasRole('ADMIN')")
+    public ResponseEntity<CodeReviewResult> getTeacherSubmissionAiReview(
+            @PathVariable UUID submissionId,
+            @RequestParam(defaultValue = "false") boolean refresh,
+            Authentication authentication) {
+        log.info("Generating AI review for submission: {} by {} (refresh={})", submissionId, authentication.getName(), refresh);
+
+        try {
+            CodeReviewResult review = submissionService.getTeacherSubmissionAiReview(
+                    submissionId,
+                    authentication.getName(),
+                    refresh
+            );
+            return ResponseEntity.ok(review);
+        } catch (BusinessException e) {
+            log.error("Error generating submission AI review: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error generating submission AI review", e);
+            throw new BusinessException("Failed to generate submission AI review: " + e.getMessage());
         }
     }
 }

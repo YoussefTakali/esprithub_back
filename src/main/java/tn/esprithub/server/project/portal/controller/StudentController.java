@@ -131,7 +131,7 @@ public class StudentController {
             @PathVariable String repositoryId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "main") String branch,
+            @RequestParam(defaultValue = "") String branch,
             Authentication authentication) {
         String studentEmail = getStudentEmail(authentication);
         log.info("🔍 Student {} requesting commits for repository: {} (page: {}, size: {})",

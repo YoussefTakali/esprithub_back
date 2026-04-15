@@ -14,13 +14,15 @@ import tn.esprithub.server.user.repository.UserRepository;
 import tn.esprithub.server.project.enums.TaskStatus;
 import tn.esprithub.server.notification.entity.Notification;
 import tn.esprithub.server.notification.repository.NotificationRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Comparator;
 import java.time.format.DateTimeFormatter;
 
 @Service
@@ -39,6 +41,112 @@ public class NotificationService {
     private static final int CRITICAL_DEADLINE_DAYS = 1;
     private static final int WARNING_DEADLINE_DAYS = 3;
     private static final int INFO_DEADLINE_DAYS = 7;
+
+    public List<Notification> getNotificationsForUser(String email, boolean unreadOnly, int limit) {
+        User user = userRepository.findByEmail(email)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<Notification> notifications = unreadOnly
+            ? notificationRepository.findByStudentAndIsReadFalseOrderByTimestampDesc(user)
+            : notificationRepository.findByStudentOrderByTimestampDesc(user);
+
+        int safeLimit = Math.max(1, Math.min(limit, 200));
+        return notifications.stream().limit(safeLimit).toList();
+    }
+
+    public long getUnreadCountForUser(String email) {
+        User user = userRepository.findByEmail(email)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+        return notificationRepository.countByStudentAndIsReadFalse(user);
+    }
+
+    public void markNotificationAsRead(String email, Long notificationId) {
+        User user = userRepository.findByEmail(email)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Notification notification = notificationRepository.findByIdAndStudent(notificationId, user)
+            .orElseThrow(() -> new RuntimeException("Notification not found"));
+
+        if (!notification.isRead()) {
+            notification.setRead(true);
+            notificationRepository.save(notification);
+        }
+    }
+
+    public int markAllNotificationsAsRead(String email) {
+        User user = userRepository.findByEmail(email)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<Notification> unreadNotifications = notificationRepository.findByStudentAndIsReadFalseOrderByTimestampDesc(user);
+        unreadNotifications.forEach(notification -> notification.setRead(true));
+        notificationRepository.saveAll(unreadNotifications);
+        return unreadNotifications.size();
+    }
+
+    public void markNotificationAsSeen(String email, Long notificationId) {
+        markNotificationAsRead(email, notificationId);
+    }
+
+    public int markAllNotificationsAsSeen(String email) {
+        return markAllNotificationsAsRead(email);
+    }
+
+    public void deleteNotification(String email, Long notificationId) {
+        User user = userRepository.findByEmail(email)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+
+        long deleted = notificationRepository.deleteByIdAndStudent(notificationId, user);
+        if (deleted == 0) {
+            throw new RuntimeException("Notification not found");
+        }
+    }
+
+    public int deleteAllNotifications(String email) {
+        User user = userRepository.findByEmail(email)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+
+        return (int) notificationRepository.deleteByStudent(user);
+    }
+
+    public int createInAppNotifications(Collection<User> recipients, String title, String message, String type) {
+        return createInAppNotifications(recipients, title, message, type, null);
+    }
+
+    public int createInAppNotifications(Collection<User> recipients, String title, String message, String type, String targetUrl) {
+        if (recipients == null || recipients.isEmpty()) {
+            return 0;
+        }
+
+        Map<java.util.UUID, User> uniqueRecipients = new LinkedHashMap<>();
+        for (User recipient : recipients) {
+            if (recipient == null || recipient.getId() == null) {
+                continue;
+            }
+            uniqueRecipients.put(recipient.getId(), recipient);
+        }
+
+        if (uniqueRecipients.isEmpty()) {
+            return 0;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        List<Notification> notifications = uniqueRecipients.values().stream()
+            .map(recipient -> {
+                Notification notif = new Notification();
+                notif.setTitle(title);
+                notif.setMessage(message);
+                notif.setType(type);
+                notif.setTargetUrl(targetUrl);
+                notif.setTimestamp(now);
+                notif.setRead(false);
+                notif.setStudent(recipient);
+                return notif;
+            })
+            .toList();
+
+        notificationRepository.saveAll(notifications);
+        return notifications.size();
+    }
 
     /**
      * Envoie une notification pour un événement GitHub (push/pull)
@@ -97,6 +205,15 @@ public class NotificationService {
             try {
                 emailService.sendNotificationEmail(recipient.getEmail(), subject, emailContent);
                 log.info("Task deadline alert sent to: {}", recipient.getEmail());
+
+                Notification notif = new Notification();
+                notif.setTitle(subject);
+                notif.setMessage(task.getTitle() + " deadline in " + daysUntilDeadline + " day(s)");
+                notif.setType("WARNING");
+                notif.setTimestamp(LocalDateTime.now());
+                notif.setRead(false);
+                notif.setStudent(recipient);
+                notificationRepository.save(notif);
             } catch (Exception e) {
                 log.error("Failed to send task deadline email to: {}", recipient.getEmail(), e);
             }
@@ -126,6 +243,15 @@ public class NotificationService {
             try {
                 emailService.sendNotificationEmail(recipient.getEmail(), subject, emailContent);
                 log.info("Project deadline alert sent to: {}", recipient.getEmail());
+
+                Notification notif = new Notification();
+                notif.setTitle(subject);
+                notif.setMessage(project.getName() + " deadline in " + daysUntilDeadline + " day(s)");
+                notif.setType("WARNING");
+                notif.setTimestamp(LocalDateTime.now());
+                notif.setRead(false);
+                notif.setStudent(recipient);
+                notificationRepository.save(notif);
             } catch (Exception e) {
                 log.error("Failed to send project deadline email to: {}", recipient.getEmail(), e);
             }

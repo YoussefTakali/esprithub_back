@@ -85,6 +85,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("SELECT u FROM User u WHERE u.githubToken IS NOT NULL AND u.githubToken != '' AND u.isActive = true")
     List<User> findUsersWithGitHubTokens();
 
+    @Query("SELECT u FROM User u WHERE u.githubToken IS NOT NULL AND u.githubToken != '' AND u.isActive = true AND u.role = 'STUDENT'")
+    List<User> findActiveStudentsWithGitHubTokens();
+
     // Pagination support for large datasets
     @Query("SELECT u FROM User u WHERE u.role IN :roles ORDER BY u.lastName, u.firstName")
     List<User> findByRoleInOrderByName(@Param("roles") List<UserRole> roles);

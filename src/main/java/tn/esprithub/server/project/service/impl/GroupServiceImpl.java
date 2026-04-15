@@ -26,6 +26,7 @@ import tn.esprithub.server.project.dto.GroupCreateDto;
 import tn.esprithub.server.project.dto.GroupUpdateDto;
 import tn.esprithub.server.integration.github.GithubService;
 import tn.esprithub.server.user.entity.User;
+import tn.esprithub.server.messenger.service.MessengerService;
 import tn.esprithub.server.repository.service.RepositoryEntityService;
 import tn.esprithub.server.repository.service.RepositoryService;
 
@@ -39,8 +40,9 @@ public class GroupServiceImpl implements GroupService {
     private final GithubService githubService;
     private final RepositoryEntityService repositoryEntityService;
     private final RepositoryService repositoryService;
+    private final MessengerService messengerService;
 
-    public GroupServiceImpl(GroupRepository groupRepository, ClasseRepository classeRepository, ProjectRepository projectRepository, UserRepository userRepository, GithubService githubService, RepositoryEntityService repositoryEntityService, RepositoryService repositoryService) {
+    public GroupServiceImpl(GroupRepository groupRepository, ClasseRepository classeRepository, ProjectRepository projectRepository, UserRepository userRepository, GithubService githubService, RepositoryEntityService repositoryEntityService, RepositoryService repositoryService, MessengerService messengerService) {
         this.groupRepository = groupRepository;
         this.classeRepository = classeRepository;
         this.projectRepository = projectRepository;
@@ -48,6 +50,7 @@ public class GroupServiceImpl implements GroupService {
         this.githubService = githubService;
         this.repositoryEntityService = repositoryEntityService;
         this.repositoryService = repositoryService;
+        this.messengerService = messengerService;
     }
 
     @Override
@@ -72,7 +75,9 @@ public class GroupServiceImpl implements GroupService {
         group.setStudents(group.getStudents().stream()
             .map(s -> userRepository.findById(s.getId()).orElseThrow(() -> new IllegalArgumentException("Student not found with id: " + s.getId())))
             .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new)));
-        return groupRepository.save(group);
+        Group savedGroup = groupRepository.save(group);
+        messengerService.ensureGroupConversation(savedGroup);
+        return savedGroup;
     }
 
     @Override
@@ -113,6 +118,7 @@ public class GroupServiceImpl implements GroupService {
         group.setProject(managedProject);
         group.setStudents(managedStudents);
         Group savedGroup = groupRepository.save(group);
+        messengerService.ensureGroupConversation(savedGroup);
         
         // --- GITHUB INTEGRATION ---
         boolean repoCreated = false;
@@ -280,6 +286,7 @@ public class GroupServiceImpl implements GroupService {
 
         // Save the updated group
         Group savedGroup = groupRepository.save(group);
+        messengerService.syncGroupConversationParticipants(savedGroup);
 
         // Add new students as repository collaborators if group has an associated repository
         if (!addedStudentIds.isEmpty() && group.getRepository() != null) {

@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -24,7 +23,7 @@ import java.util.List;
 @Entity
 @Table(name = "users")
 @Data
-@EqualsAndHashCode(callSuper = false, onlyExplicitlyIncluded = true)
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -33,8 +32,6 @@ public class User extends BaseEntity implements UserDetails {
 
     @Column(unique = true, nullable = false)
     @Email(message = "Email should be valid")
-    @Pattern(regexp = "^[A-Za-z0-9._%+-]+@esprit\\.tn$", 
-             message = "Email must be from esprit.tn domain")
     private String email;
 
     @Column(nullable = false)

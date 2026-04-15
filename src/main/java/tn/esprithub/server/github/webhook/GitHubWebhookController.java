@@ -8,6 +8,7 @@ import tn.esprithub.server.notification.NotificationService;
 import tn.esprithub.server.ai.CodeReviewService;
 import tn.esprithub.server.ai.dto.CodeReviewResult;
 import tn.esprithub.server.github.service.GitHubWebhookService;
+import tn.esprithub.server.github.service.GitHubRepositoryScheduler;
 import tn.esprithub.server.github.service.RepositoryDataSyncService;
 import tn.esprithub.server.project.entity.Group;
 import tn.esprithub.server.project.repository.GroupRepository;
@@ -30,6 +31,7 @@ public class GitHubWebhookController {
     private final UserRepository userRepository;
     private final GitHubWebhookService gitHubWebhookService;
     private final RepositoryDataSyncService repositoryDataSyncService;
+    private final GitHubRepositoryScheduler gitHubRepositoryScheduler;
 
     /**
      * Endpoint pour recevoir les webhooks GitHub
@@ -107,6 +109,11 @@ public class GitHubWebhookController {
                     log.error("Error syncing repository data for: {}", repositoryFullName, e);
                     // Don't fail the webhook processing if sync fails
                 }
+            }
+
+            // Keep all student repositories fresh when any meaningful repository update is received.
+            if (shouldRefreshAllStudentRepositories(eventType)) {
+                gitHubRepositoryScheduler.triggerStudentRepositoryRefreshFromWebhook(eventType, repositoryFullName);
             }
 
             return ResponseEntity.ok("Webhook processed successfully");
@@ -394,6 +401,13 @@ public class GitHubWebhookController {
         } catch (Exception ex) {
             log.debug("Unable to update webhook delivery status", ex);
         }
+    }
+
+    private boolean shouldRefreshAllStudentRepositories(String eventType) {
+        return switch (eventType) {
+            case "push", "pull_request", "create", "delete", "release", "fork" -> true;
+            default -> false;
+        };
     }
 
     /**

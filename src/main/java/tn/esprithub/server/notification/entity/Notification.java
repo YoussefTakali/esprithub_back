@@ -13,6 +13,8 @@ public class Notification {
     private String title;
     private String message;
     private String type; // INFO, WARNING, SUCCESS, ERROR
+    @Column(name = "target_url", length = 500)
+    private String targetUrl;
     private LocalDateTime timestamp;
     private boolean isRead;
 
@@ -28,6 +30,8 @@ public class Notification {
     public void setMessage(String message) { this.message = message; }
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
+    public String getTargetUrl() { return targetUrl; }
+    public void setTargetUrl(String targetUrl) { this.targetUrl = targetUrl; }
     public LocalDateTime getTimestamp() { return timestamp; }
     public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
     public boolean isRead() { return isRead; }

@@ -3,6 +3,7 @@ package tn.esprithub.server.github.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import tn.esprithub.server.repository.entity.Repository;
@@ -10,16 +11,20 @@ import tn.esprithub.server.user.entity.User;
 import tn.esprithub.server.user.repository.UserRepository;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 @ConditionalOnProperty(name = "app.webhook.scheduling.enabled", havingValue = "true", matchIfMissing = true)
 public class GitHubRepositoryScheduler {
+
+    private static final long WEBHOOK_STUDENT_REFRESH_COOLDOWN_MILLIS = 120_000; // 2 minutes
     
     private final UserRepository userRepository;
     private final GitHubRepositoryFetchService gitHubRepositoryFetchService;
     private final GitHubWebhookService gitHubWebhookService;
+    private final AtomicLong lastWebhookStudentRefreshAt = new AtomicLong(0L);
     
     /**
      * Smart repository fetch - only fetches if data is stale (every 24 hours)
@@ -135,5 +140,50 @@ public class GitHubRepositoryScheduler {
     public void fetchRepositoriesForAllUsersNow() {
         log.info("Manual trigger: fetching repositories for all users");
         fetchRepositoriesForAllUsers();
+    }
+
+    /**
+     * Force-refresh all active students' repositories after a GitHub webhook update.
+     * Runs asynchronously and is rate-limited to avoid repeated heavy refreshes during webhook bursts.
+     */
+    @Async
+    public void triggerStudentRepositoryRefreshFromWebhook(String eventType, String repositoryFullName) {
+        long now = System.currentTimeMillis();
+        long lastRun = lastWebhookStudentRefreshAt.get();
+
+        if (now - lastRun < WEBHOOK_STUDENT_REFRESH_COOLDOWN_MILLIS) {
+            log.info("⏭️ Skipping webhook-triggered student refresh (cooldown active). Event: {}, Repository: {}", eventType, repositoryFullName);
+            return;
+        }
+
+        if (!lastWebhookStudentRefreshAt.compareAndSet(lastRun, now)) {
+            log.debug("Another webhook-triggered student refresh is already starting, skipping duplicate trigger");
+            return;
+        }
+
+        log.info("🔄 Webhook-triggered refresh for all students started. Event: {}, Repository: {}", eventType, repositoryFullName);
+
+        try {
+            List<User> studentsWithTokens = userRepository.findActiveStudentsWithGitHubTokens();
+            log.info("Found {} active students with GitHub tokens", studentsWithTokens.size());
+
+            int successCount = 0;
+            int errorCount = 0;
+
+            for (User student : studentsWithTokens) {
+                try {
+                    List<Repository> repositories = gitHubRepositoryFetchService.fetchAndSaveUserRepositories(student, true);
+                    successCount++;
+                    log.debug("Refreshed {} repositories for student: {}", repositories.size(), student.getEmail());
+                } catch (Exception e) {
+                    errorCount++;
+                    log.error("Failed to refresh repositories for student: {}", student.getEmail(), e);
+                }
+            }
+
+            log.info("✅ Webhook-triggered student refresh finished. Success: {}, Errors: {}", successCount, errorCount);
+        } catch (Exception e) {
+            log.error("Error during webhook-triggered student repository refresh", e);
+        }
     }
 }
