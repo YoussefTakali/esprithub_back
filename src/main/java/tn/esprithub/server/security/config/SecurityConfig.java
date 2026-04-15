@@ -60,6 +60,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/v1/auth/login", "/api/v1/auth/refresh",
                                 "/api/v1/health",
+                            "/", "/healthz",
                                 "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health",
                                 "/api/v1/github/auth-url",
                                 "/api/v1/admin/users/export", // Temporarily allow CSV export without auth
