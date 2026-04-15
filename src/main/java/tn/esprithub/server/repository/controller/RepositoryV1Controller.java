@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/v1/repositories")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = {"http://localhost:4200", "http://127.0.0.1:4200"}, allowCredentials = "true")
+@CrossOrigin(origins = {"http://https://esprithubfront-production.up.railway.app", "http://127.0.0.1:4200"}, allowCredentials = "true")
 public class RepositoryV1Controller {
 
     private final AdminUserDataService adminUserDataService;

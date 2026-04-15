@@ -8,7 +8,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/test")
-@CrossOrigin(origins = "http://localhost:4200")
+@CrossOrigin(origins = "http://https://esprithubfront-production.up.railway.app")
 public class TestController {
 
     @PostMapping("/simple")

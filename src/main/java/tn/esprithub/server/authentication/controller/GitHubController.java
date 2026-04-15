@@ -24,7 +24,7 @@ public class GitHubController {
     @Value("${spring.security.oauth2.client.registration.github.scope}")
     private String githubScope;
 
-    @Value("${FRONTEND_URL:http://localhost:4200}")
+    @Value("${FRONTEND_URL:http://https://esprithubfront-production.up.railway.app}")
     private String frontendUrl;
 
     @Value("${github.oauth.redirect-uri:}")

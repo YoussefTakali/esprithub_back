@@ -14,7 +14,7 @@ import java.util.UUID;
 @RequestMapping("/api/v1/github")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = {"http://localhost:4200", "http://127.0.0.1:4200"}, allowCredentials = "true")
+@CrossOrigin(origins = {"http://https://esprithubfront-production.up.railway.app", "http://127.0.0.1:4200"}, allowCredentials = "true")
 public class GitHubRepositoryController {
 
     private final AdminUserDataService adminUserDataService;

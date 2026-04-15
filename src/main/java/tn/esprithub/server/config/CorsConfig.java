@@ -22,7 +22,7 @@ public class CorsConfig implements WebMvcConfigurer {
     public void addCorsMappings(@NonNull CorsRegistry registry) {
         log.info("🔧 Configuring CORS mappings...");
 
-        String[] origins = splitProperty(corsProperties.getAllowedOrigins(), new String[]{"http://localhost:4200"});
+        String[] origins = splitProperty(corsProperties.getAllowedOrigins(), new String[]{"http://https://esprithubfront-production.up.railway.app"});
         String[] methods = splitProperty(corsProperties.getAllowedMethods(), new String[]{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"});
         String[] headers = splitProperty(corsProperties.getAllowedHeaders(), new String[]{"*"});
 
